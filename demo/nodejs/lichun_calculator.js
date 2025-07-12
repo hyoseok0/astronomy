@@ -30,7 +30,7 @@ const SOLAR_TERMS = [
 function calculateSolarTerm(longitude, year) {
     // Create search start date (January 1st of the given year)
     const searchStart = new Date(year, 0, 1); // Month is 0-indexed
-    const searchDays = 450; // Search for 366 days
+    const searchDays = 366; // Search for 366 days
     
     // First attempt: search within the target year
     try {
@@ -47,4 +47,119 @@ function calculateSolarTerm(longitude, year) {
     return null; // No solar term found in the target year
 }
 
-module.exports = { SOLAR_TERMS, calculateSolarTerm };
+/**
+ * Get the Lichun (Beginning of Spring) date for a given year
+ * @param {number} year - The year to find Lichun for
+ * @returns {AstroTime|null} - The AstroTime object for Lichun, or null if not found
+ */
+function getLichunDate(year) {
+    return calculateSolarTerm(315, year); // 315 degrees is Lichun
+}
+
+/**
+ * Calculate the search period between two Lichun dates
+ * @param {number} year - The starting year
+ * @returns {Object} - Object containing searchStart (AstroTime) and searchDays (number)
+ */
+function calculateSearchPeriod(year) {
+    // Get Lichun of the specified year
+    const lichunStart = getLichunDate(year);
+    if (!lichunStart) {
+        throw new Error(`Could not find Lichun date for year ${year}`);
+    }
+    
+    // Get Lichun of the next year
+    const lichunEnd = getLichunDate(year + 1);
+    if (!lichunEnd) {
+        throw new Error(`Could not find Lichun date for year ${year + 1}`);
+    }
+    
+    // Calculate the difference in days between the two Lichun dates
+    const searchDays = (lichunEnd.date.getTime() - lichunStart.date.getTime()) / (1000 * 60 * 60 * 24);
+    
+    // Subtract 1 day from the start date to ensure we capture the first Lichun
+    // SearchSunLongitude requires dateStart to be earlier than the desired longitude event
+    const adjustedStartDate = new Date(lichunStart.date.getTime() - 24 * 60 * 60 * 1000);
+    
+    return {
+        searchStart: adjustedStartDate,
+        searchDays: Math.ceil(searchDays) + 1 // Add 1 day to compensate for the earlier start
+    };
+}
+
+/**
+ * Get all 24 solar terms between two Lichun dates
+ * @param {number} year - The starting year (between Lichun of this year and next year)
+ * @returns {Array} - Array of objects containing solar term information and dates
+ */
+function getAllSolarTerms(year) {
+    try {
+        const { searchStart, searchDays } = calculateSearchPeriod(year);
+        const solarTerms = [];
+        
+        // Search for each of the 24 solar terms
+        for (const term of SOLAR_TERMS) {
+            try {
+                const astroTime = Astronomy.SearchSunLongitude(term.longitude, searchStart, searchDays);
+                if (astroTime) {
+                    solarTerms.push({
+                        ...term,
+                        date: astroTime.date,
+                        astroTime: astroTime
+                    });
+                }
+            } catch (error) {
+                console.error(`Error searching for ${term.name}:`, error);
+                // Continue with other terms even if one fails
+            }
+        }
+        
+        // Sort by date to ensure chronological order
+        solarTerms.sort((a, b) => a.date.getTime() - b.date.getTime());
+        
+        return solarTerms;
+    } catch (error) {
+        console.error('Error calculating solar terms:', error);
+        return [];
+    }
+}
+
+/**
+ * Get solar terms for a specific year with more detailed information
+ * @param {number} year - The year to get solar terms for
+ * @returns {Object} - Object containing year info, search period, and all solar terms
+ */
+function getSolarTermsForYear(year) {
+    try {
+        const searchPeriod = calculateSearchPeriod(year);
+        const solarTerms = getAllSolarTerms(year);
+        
+        return {
+            year: year,
+            searchPeriod: {
+                startDate: searchPeriod.searchStart,
+                endDate: new Date(searchPeriod.searchStart.getTime() + searchPeriod.searchDays * 24 * 60 * 60 * 1000),
+                searchDays: searchPeriod.searchDays
+            },
+            solarTerms: solarTerms,
+            totalTerms: solarTerms.length
+        };
+    } catch (error) {
+        console.error(`Error getting solar terms for year ${year}:`, error);
+        return {
+            year: year,
+            error: error.message,
+            solarTerms: [],
+            totalTerms: 0
+        };
+    }
+}
+
+module.exports = { 
+    SOLAR_TERMS, 
+    calculateSolarTerm, 
+    getLichunDate, 
+    calculateSearchPeriod, 
+    getAllSolarTerms, 
+    getSolarTermsForYear 
+};
