@@ -8,10 +8,10 @@ const {
 } = require('./lichun_calculator');
 
 // Test the functions
-function testSolarTerms() {
+function testSolarTerms(year = 2024) {
     console.log('=== Solar Terms Calculator Test ===\n');
     
-    const testYear = 2024;
+    const testYear = year;
     
     // Test 1: Get Lichun date for a specific year
     console.log(`1. Lichun (Beginning of Spring) for ${testYear}:`);
@@ -97,9 +97,16 @@ function testSolarTerms() {
     }
 }
 
+
+
 // Run the test
 if (require.main === module) {
-    testSolarTerms();
+    // Get year from command line arguments, default to 2024
+    const year = parseInt(process.argv[2]) || 2024;
+    
+    console.log(`Running tests for year: ${year}\n`);
+    
+    testSolarTerms(year);
 }
 
 module.exports = { testSolarTerms }; 
